@@ -1,0 +1,15 @@
+{
+  "name": "learnharness-mobile-bridge",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs && node portable/build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@electron/asar": "4.0.1",
+    "esbuild": "0.25.5",
+    "typebox": "1.3.27"
+  }
+}

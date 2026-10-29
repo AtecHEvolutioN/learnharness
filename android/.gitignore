@@ -1,0 +1,9 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
+.idea/
+# The upstream root ignores directories named data; these are Kotlin source adapters.
+!app/src/main/java/ai/learnharness/android/data/

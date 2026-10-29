@@ -1,0 +1,41 @@
+name: Android, PC bridge and encrypted sync
+on:
+  push:
+    branches: [android-native]
+    paths: ['android/**', 'mobile-bridge/**', 'cloud-sync/**', 'electron/mobile-*.cjs', 'electron/cloud-sync*.cjs', 'src/core/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['android/**', 'mobile-bridge/**', 'cloud-sync/**', 'electron/mobile-*.cjs', 'electron/cloud-sync*.cjs', 'src/core/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew && ./gradlew assembleDebug testDebugUnitTest lintDebug
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LearnHarness-Android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+  bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.25.0'
+      - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm build && pnpm test
+        working-directory: mobile-bridge
+      - run: git diff --exit-code -- electron/mobile-bridge.cjs electron/cloud-sync-core.cjs android/app/src/main/assets/engine.js android/app/src/main/assets/THIRD-PARTY-NOTICES.txt
+      - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm test
+        working-directory: cloud-sync

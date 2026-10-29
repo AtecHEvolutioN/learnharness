@@ -22,6 +22,10 @@ Instead of just giving you an explanation, it uses your answers and thinking to 
 
 ![LearnHarness teaching session](docs/assets/teaching-session.png)
 
+## Android fork
+
+This fork includes a native Kotlin/Jetpack Compose app with independent phone lessons and a paired connection to the existing PC app, including remote access through Tailscale. See [Android build and setup](android/README.md). The opt-in desktop bridge keeps provider credentials on the PC.
+
 ## How it works
 
 1. **Measure.** Before teaching, the agent finds where your understanding ends on each part the lesson depends on. Your answers, confidence, and thinking show it where to start.
