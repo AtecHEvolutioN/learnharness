@@ -28,7 +28,7 @@ class AppUiTest {
         compose.waitUntil(10000) {compose.onAllNodesWithText("Learning plan (3)").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Learning plan (3)").performClick()
         compose.onNodeWithText("Falling around Earth").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Back").performClick()
+        compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()}
         compose.onNodeWithText("Knowledge",useUnmergedTree=true).performClick()
         compose.onNodeWithTag("knowledge").performScrollToNode(hasText("Find an idea"))
         compose.onNodeWithText("Find an idea").performTextInput("Inertia")

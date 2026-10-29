@@ -1,0 +1,16 @@
+import {extractAll,createPackage,extractFile} from '@electron/asar';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+const root=path.resolve(import.meta.dirname,'..');
+const [source,stage,output]=process.argv.slice(2).map(p=>path.resolve(p));
+if(!source||!stage||!output)throw Error('Expected installed app.asar, new staging directory and output directory');
+const original=await fs.readFile(source);
+if(createHash('sha256').update(original).digest('hex')!=='6925c41c357aae4c0ceb8ea847d749c070257dba8114fef03475eee5dd707d46')throw Error('Installed app changed; inspect before replacing');
+if(JSON.parse(extractFile(source,'package.json').toString()).version!=='0.4.0')throw Error('Unexpected desktop version');
+await fs.mkdir(stage);await fs.mkdir(output,{recursive:true});extractAll(source,stage);
+for(const file of ['main.cjs','cloud-sync.cjs','cloud-sync-core.cjs'])await fs.copyFile(path.join(root,'electron',file),path.join(stage,'electron',file));
+await createPackage(stage,path.join(output,'app.asar'));
+const manifest={originalSha256:createHash('sha256').update(original).digest('hex'),updatedSha256:createHash('sha256').update(await fs.readFile(path.join(output,'app.asar'))).digest('hex'),serverSource:path.join(root,'.next','standalone')};
+await fs.writeFile(path.join(output,'manifest.json'),JSON.stringify(manifest,null,2));
+console.log('Reversible PC shell update prepared. Installed application has not been changed.');

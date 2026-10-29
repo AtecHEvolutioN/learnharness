@@ -44,6 +44,7 @@ const SIDEBAR_AUTOCLOSE = 928;
 
 const PRODUCT_NAME = "LearnHarness";
 let mobileConnection;
+let cloudSync;
 
 // APP NAME → userData (owner, 2026-10-10): the Application Support dir is
 // exactly "LearnHarness" in dev AND packaged. Packaged Electron would
@@ -589,6 +590,7 @@ function installMenu() {
 			submenu: [
 				{ role: "about" },
 				{ label: "Connect Android phone…", accelerator: "CommandOrControl+Shift+M", click: () => mobileConnection?.show() },
+				{ label: "Private cloud sync…", accelerator: "CommandOrControl+Shift+Y", click: () => cloudSync?.show() },
 				// Manual checks report their result in Settings → General.
 				{ label: "Check for Updates…", click: () => checkForUpdatesFromMenu() },
 				{ type: "separator" },
@@ -683,6 +685,7 @@ async function main() {
 		await startServer(new URL(url).port);
 		await waitUntilUp(url);
 		mobileConnection = require("./mobile-connection.cjs").createMobileConnection(url, desktopAPISecret);
+		cloudSync = require("./cloud-sync.cjs").createCloudSync(url, desktopAPISecret);
 		log(`server up: ${url}`);
 	} else {
 		log(`dev mode: ${devUrl}`);

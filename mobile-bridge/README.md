@@ -32,4 +32,10 @@ Every endpoint requires the pairing token. Requests carrying Origin are refused.
 
 The desktop turn is drained and its persisted record fetched after completion. Token streaming and desktop-generated visual artifacts are not rendered on Android in this version. The phone refreshes foreground views and handles the desktop's busy/error state. Closing the phone does not cancel a turn already running on the PC; the completed record can be resumed from either device.
 
-This is an initial version. No real phone or remote Tailscale connection was available during development. End-to-end pairing and a live provider conversation must be checked on the user's devices before relying on this build for regular use.
+The paired bridge was installed and checked on a Galaxy S23, including opening a PC session over mobile data through Tailscale. It still requires the PC to be running.
+
+## Independent Android engine and cloud sync
+
+Android 0.2 also includes `portable/engine.ts`, which runs the shared learning contracts on the phone and delegates ChatGPT OAuth and HTTPS calls to Kotlin. `portable/sync.ts` implements the encrypted revision journal shared with Electron. These paths do not use the live PC bridge or Tailscale. See the [Android guide](../android/README.md) and [private sync service](../cloud-sync/README.md) for capabilities, setup and limits.
+
+`pnpm build` generates Android's engine asset and Electron's cloud-sync bundle as well as the live bridge. Commit these generated runtime bundles with their source and license notices. Tests cover cross-device history replay, encrypted round trips, concurrent changes, deletion, and durable retries. On-device verification exercises the packaged engine with a synthetic library, without reading account credentials.

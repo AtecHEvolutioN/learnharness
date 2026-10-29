@@ -1,63 +1,58 @@
-# LearnHarness for Android
+# LearnHarness Android 0.2
 
-Native Kotlin / Jetpack Compose Android app, adapted from [LearnHarness](https://github.com/amosblomqvist/learnharness), AGPL-3.0-only. Android 8.0+ (API 26). This is an initial native port, not desktop feature parity.
+Native Kotlin / Compose app adapted from [LearnHarness](https://github.com/amosblomqvist/learnharness), AGPL-3.0-only. Android 8+ with an up-to-date Android System WebView.
 
-## Two ways to learn
+## Independent learning
 
-- **My PC:** use your desktop's real sessions, teacher, practice agent, model configuration and knowledge graph. The Android app submits events through a restricted, paired bridge. Provider credentials remain on the PC. Foreground views refresh every 10 seconds (2.5 seconds while the selected session is working). No background polling or automatic AI requests.
-- **On this phone:** independent, locally stored lessons with an OpenAI-compatible chat-completions provider and a model supporting JSON responses. Includes an offline sample. These lessons use a compact mobile tutor protocol rather than the desktop's full agent runtime. They are not merged into the PC library.
+In Settings, choose **Continue with ChatGPT**, complete sign-in in the system browser, return to the app, and select an available model. This phone has its own OAuth registration and credentials. It calls OpenAI directly with your authorized ChatGPT plan; the PC can be switched off. There is no automatic API-key billing fallback.
 
-The last opened PC session is cached for offline reading. New PC turns require a live connection. No silent offline write queue: after an interrupted request, refresh to see whether the PC saved it before retrying.
+Return to LearnHarness as soon as the browser says sign-in was received: the credential exchange waits for the app to be visible. If approval hangs with Android Power saving enabled, turn Power saving off temporarily for sign-in. The Galaxy S23 setup required this. New registrations are labeled LearnHarness Android; an existing registration retains its previously approved name.
 
-## Connect your installed PC app, including away from home
+The visible interface is native Compose: a dark session drawer, learning plans, question and practice cards, Markdown/LaTeX, and searchable knowledge. A packaged, network-disabled JavaScript engine shares the desktop transcript, question and grading contracts. Kotlin performs network requests and app-private persistence. No remote website or script runs in the engine.
 
-The original desktop 0.4.0 deliberately accepts API requests only from its own window. A companion script cannot simply connect to its port. The supplied desktop shell update adds an explicit **Connect Android phone…** menu action while keeping the original API authorization intact.
+Teaching includes assessment, prerequisite plans, quizzes/free recall, feedback, practice problems with committed solutions, and saved propositions. Research jobs, PDF imports, generated demos/visuals, dictation, desktop graph editing and long-context compaction remain desktop features. Synced transcripts remain readable, but associated artifact files are not copied. This is not full desktop feature parity.
 
-1. Close LearnHarness. Extract the supplied PC update ZIP and run `Install-PC-Bridge.ps1` in PowerShell. It verifies both archive hashes, backs up `app.asar`, and updates only the shell. It refuses a different installed version. The data directory and provider files are untouched.
-2. Start LearnHarness. Press **Ctrl+Shift+M** (or choose **LearnHarness → Connect Android phone…** from the Alt menu). This starts a bridge bound only to `127.0.0.1:47832`.
-3. Install [Tailscale](https://tailscale.com/download) on PC and Android, sign into the same account, and connect both devices. Enable HTTPS when Tailscale requests it.
-4. On PC run `tailscale serve --bg http://127.0.0.1:47832`. Use **Serve**, which stays inside your private tailnet. Do not use public Funnel.
-5. Copy the HTTPS address Tailscale prints. In the desktop connection dialog choose **Copy pairing token**.
-6. In Android **Settings**, enter that HTTPS address and token, then tap **Connect and test**. Choose **My PC** on the Learn or Knowledge screen.
+## Private cloud sync
 
-The PC must stay powered on and awake with LearnHarness running. Open **Connect Android phone…** after each desktop restart; the saved token remains valid until **Stop and revoke** is used. Tailscale supplies the private network and trusted HTTPS certificate. See [Tailscale Serve documentation](https://tailscale.com/docs/features/tailscale-serve).
+The optional [private sync service](../cloud-sync/README.md) lets each device upload and download independently. They do not need to be online together. PC sync runs while the desktop app is open. Phone sync runs while the app is in the foreground, after completed actions, and through **Sync lessons**. It is not an Android background service. Unsynced changes remain local until a successful retry.
 
-To revoke a phone, choose **Stop and revoke** on PC. A future connection generates a new token. `tailscale serve --https=443 off` stops the default Serve endpoint. `Restore-PC-App.ps1` restores the exact archived shell after verifying its hash. An upstream desktop auto-update may replace the bridge; install a reviewed bridge update for that new version rather than applying the old patch.
+The PC **Private cloud sync…** menu (**Ctrl+Shift+Y**) shows status and copies the phone setup code. Paste it into Android Settings → Private cloud sync. This code contains the vault key; share it only with your own app. The old Tailscale address/pairing token is a separate connection, not a cloud setup code.
 
-## Supported native screens
+Sessions and four graph ledgers use an immutable revision journal, compressed and encrypted on-device with AES-256-GCM. Vercel Blob is private. The server holds an access-token hash, not the decryption key or ChatGPT credentials. Concurrent session edits retain a separate conflict copy. An edit concurrent with deletion is retained. PC imports wait for active work to finish and compare the local fingerprint before replacement. Replaced local records are backed up.
 
-- Create/resume learning and practice sessions; readable transcript and learning plan.
-- PC quizzes, probes, free-text questions, explanations, confidence, reasoning, and practice problem submissions. Answers use the original core's deterministic grading logic on the bridge.
-- Knowledge graph overview, connected claims and search.
-- Keystore-encrypted pairing token and provider key, with backups disabled.
-- Local JSON export/import, with credential exclusion, validation and non-destructive merge by session ID.
+When both devices change the same lesson, the phone follows the conflict copy containing its own history and displays a notice. Separate lessons can be used concurrently without branching. Markdown tables render natively with wrapping cells; wide tables use equal-width columns rather than the desktop's horizontal scrolling layout.
 
-Desktop-generated demos, rich mathematical typesetting, background research artifacts, dictation, editing provider subscriptions, graph editing and full desktop UI controls remain desktop features. Native transcript text is rendered as text; embedded HTML/JS is never executed. The Android app does not transfer desktop API keys or subscription credentials.
+Keep a secure copy of the setup code: losing both devices and the vault key makes cloud ciphertext unrecoverable. Changing vaults is deliberately refused until the existing library is dealt with explicitly. Historical revisions currently have no automatic purge.
 
-## Build and test
+The local sync cache keeps complete bodies only for current revisions and pending uploads; older uploaded revisions retain ancestry metadata locally and encrypted bodies in cloud storage. This prevents each saved turn from duplicating the complete lesson history in Android's bridge. Failed or oversized bridge operations return an error; sync has a two-minute timeout and keeps local work for retry.
 
-Open this `android/` folder in Android Studio, or install JDK 17 and Android SDK 35, set `ANDROID_HOME`, and run:
+## Existing data and backups
 
-```sh
-./gradlew assembleDebug testDebugUnitTest lintDebug
-```
+The 0.1 phone library stays intact. Messages and plans are copied into the shared format, with the complete original record retained inside each migrated session. Migration is tracked locally so deleting a migrated session does not recreate it from the old library.
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`. The debug APK is installable for testing and is not a signed Play Store release. Keep a stable private release signing key before distributing future production updates.
+**Export all lessons** saves the shared library, knowledge and original phone records. Credentials and vault keys are excluded. Import validates sessions and keeps distinct incoming versions as copies; old 0.1 backup files remain accepted. App records use atomic JSON writes. Android system backup is disabled for credential safety.
 
-Bridge, from `mobile-bridge/`:
+## Optional direct PC connection
+
+The paired bridge remains in Settings → Earlier phone lessons and live PC connection. It uses the PC agent while that PC is running. Enable it with **Ctrl+Shift+M**, then use Tailscale Serve HTTPS and the bridge pairing token. Do not use public Funnel. See [bridge details](../mobile-bridge/README.md).
+
+Tailscale is not needed for independent ChatGPT teaching or cloud sync. The last direct-PC session remains cached for reading. A direct-PC request is never silently replayed after an uncertain network failure.
+
+## Build and verification
+
+Install root dependencies, then build the shared bundles:
 
 ```sh
+cd mobile-bridge
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
 pnpm test
+cd ../android
+./gradlew assembleDebug testDebugUnitTest lintDebug
 ```
 
-This bundles original pure core helpers into `electron/mobile-bridge.cjs`. Rebuild the bridge when changing those helpers. No Node runtime or npm installation is required by the packaged desktop patch; it uses Electron's existing runtime. Package a version-checked update using `mobile-bridge/package-desktop-update.mjs`.
+Use JDK 17 and Android SDK 35. APK: `app/build/outputs/apk/debug/app-debug.apk`. Updates must use the same signing key; install with `adb install -r`, never uninstall to update. This is a development APK, not a Play Store release.
 
-## Data and trust boundaries
+The device instrumentation test checks the real bundled engine, authenticated encryption, and fresh-device sync using an in-memory cloud without reading the user's account or library. Unit tests cover migration, grading, failed requests, conflicts, deletion, outbox recovery, store validation and native UI.
 
-PC routes are an explicit allowlist: session list/read/create, learning input, and graph read. No file-system, API-key, provider-settings, deletion, or arbitrary proxy routes. Incoming browser Origin headers are rejected. A 256-bit token is required for all requests; the desktop stores it using Electron safeStorage. The token permits AI spending through the PC's configured models, so pair only your own trusted phone.
-
-The phone requires HTTPS and rejects redirects. It stores local records in app-private atomic JSON files. Model context is sent only when you explicitly start or continue an independent phone lesson. Import/export does not include credentials. For connected mode, your PC's configured providers receive the same session inputs they would receive from the desktop UI.
-
-Attribution: original LearnHarness architecture, learning method, question contracts and core projection/grading logic by Amos Blomqvist and contributors. Original repository license and notices are retained at the repository root. Native port and bridge changes are provided under the same AGPL-3.0-only license.
+Original LearnHarness architecture, learning method, prompts and core contracts: Amos Blomqvist and contributors. Original license/notices remain at the repository root. Native port and sync changes use the same AGPL-3.0-only license. Bundled TypeBox's MIT notice is included in Android assets.

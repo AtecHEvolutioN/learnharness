@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,10 +55,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable fun HarnessTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val palette = if(dark) darkColorScheme(primary=Color(0xFF9AD6BD),secondary=Color(0xFFD6DDB0),background=Color(0xFF101813),surface=Color(0xFF151E18))
-        else lightColorScheme(primary=Color(0xFF176B53),secondary=Color(0xFF526342),background=Color(0xFFF7F8F2),surface=Color(0xFFFDFEF8),surfaceVariant=Color(0xFFE6EBDF))
-    MaterialTheme(colorScheme=palette, typography=Typography(), content=content)
+    val palette=darkColorScheme(primary=Color(0xFFE3CA80),onPrimary=Color(0xFF201D14),secondary=Color(0xFFB8B8B1),
+        background=Color(0xFF141414),surface=Color(0xFF181818),surfaceVariant=Color(0xFF222222),secondaryContainer=Color(0xFF252525),
+        onSurface=Color(0xFFE1E1DC),onBackground=Color(0xFFE1E1DC),outline=Color(0xFF44443E),outlineVariant=Color(0xFF30302C))
+    val base=Typography()
+    MaterialTheme(colorScheme=palette, typography=base.copy(
+        displaySmall=base.displaySmall.copy(fontFamily=FontFamily.Serif),headlineLarge=base.headlineLarge.copy(fontFamily=FontFamily.Serif),
+        headlineMedium=base.headlineMedium.copy(fontFamily=FontFamily.Serif),headlineSmall=base.headlineSmall.copy(fontFamily=FontFamily.Serif),
+        labelSmall=base.labelSmall.copy(fontFamily=FontFamily.Monospace),bodyLarge=base.bodyLarge.copy(fontSize=17.sp,lineHeight=27.sp)), content=content)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +71,15 @@ class MainActivity : ComponentActivity() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var create by rememberSaveable { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
+    val drawer=rememberDrawerState(DrawerValue.Closed)
+    val scope=rememberCoroutineScope()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle,vm) {
+        val observer=LifecycleEventObserver {_,_->vm.setForeground(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))}
+        lifecycle.addObserver(observer)
+        vm.setForeground(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        onDispose {lifecycle.removeObserver(observer);vm.setForeground(false)}
+    }
     DisposableEffect(lifecycle,state.pcMode,state.paired) {
         var job: kotlinx.coroutines.Job? = null
         fun start() { if(job == null) job = vm.poll() }
@@ -81,14 +94,33 @@ class MainActivity : ComponentActivity() {
     BackHandler(state.selectedId != null) { vm.open(null) }
     val local = state.data.sessions.firstOrNull { it.id == state.selectedId }
     val remote = state.remote?.takeIf { it.id == state.selectedId }
-    val title = if(state.selectedId != null) (if(state.pcMode) remote?.title else local?.title) ?: "Loading session"
+    val title = if(state.selectedId != null) (if(state.pcMode) remote?.title else state.native?.title?:local?.title) ?: "Loading session"
         else listOf("LearnHarness","Knowledge","Practice","Settings")[tab]
+    ModalNavigationDrawer(drawerState=drawer,drawerContent={ModalDrawerSheet(Modifier.width(310.dp)) {
+        Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Text("LEARNHARNESS",fontFamily=FontFamily.Monospace,letterSpacing=2.sp,style=MaterialTheme.typography.labelLarge)
+            Text("A place to understand.",fontFamily=FontFamily.Serif,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick={vm.open(null);tab=0;create=true;scope.launch {drawer.close()}},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Add,null);Text("New session")}
+        }
+        listOf("Sessions","Knowledge graph","Practice","Settings").forEachIndexed {i,label->
+            NavigationDrawerItem(label={Text(label)},selected=tab==i&&state.selectedId==null,onClick={vm.open(null);tab=i;scope.launch {drawer.close()}},modifier=Modifier.padding(horizontal=12.dp))
+        }
+        HorizontalDivider(Modifier.padding(vertical=14.dp))
+        Text("RECENT SESSIONS",Modifier.padding(horizontal=24.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(12.dp)) {
+            items(state.shared.entries.sortedByDescending {it.record["updatedAt"].toString()}.take(30),key={it.view.id}){entry->
+                NavigationDrawerItem(label={Text(entry.view.title,maxLines=2)},selected=state.selectedId==entry.view.id,onClick={vm.switchSource(false);vm.open(entry.view.id);scope.launch{drawer.close()}})
+            }
+        }
+        Text(state.syncStatus,Modifier.padding(24.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    }}) {
     Scaffold(
         topBar = { TopAppBar(title={ Text(title,maxLines=1,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold) },
-            navigationIcon={ if(state.selectedId != null) IconButton(onClick={ vm.open(null) }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack,"Back") } },
+            navigationIcon={IconButton(onClick={scope.launch {drawer.open()}}){Icon(Icons.Outlined.Menu,"Open sessions")}},
             actions={
                 if(state.pcMode && state.paired) IconButton(onClick=vm::refresh,enabled=!state.busy) { Icon(Icons.Outlined.Refresh,"Refresh PC") }
-                if(state.selectedId != null && !state.pcMode) IconButton(onClick={delete=true},enabled=!state.busy) { Icon(Icons.Outlined.DeleteOutline,"Delete session") }
+                if(state.syncConfigured&&!state.pcMode)IconButton(onClick=vm::sync,enabled=!state.busy){Icon(Icons.Outlined.CloudSync,"Sync lessons")}
+                if(state.selectedId != null && !state.pcMode&&state.native==null) IconButton(onClick={delete=true},enabled=!state.busy) { Icon(Icons.Outlined.DeleteOutline,"Delete session") }
             }) },
         bottomBar={ if(state.selectedId == null) NavigationBar {
             val icons = listOf(Icons.AutoMirrored.Outlined.MenuBook,Icons.Outlined.Hub,Icons.Outlined.Psychology,Icons.Outlined.Settings)
@@ -104,6 +136,7 @@ class MainActivity : ComponentActivity() {
             if(!state.loaded) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) { CircularProgressIndicator() }
             else if(state.selectedId != null) {
                 if(state.pcMode && remote != null) RemoteLesson(remote,state,vm)
+                else if(!state.pcMode && state.native!=null) RemoteLesson(state.native!!,state,vm)
                 else if(!state.pcMode && local != null) LocalLesson(local,state,vm)
                 else Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) { Text("Refresh to load this session.") }
             } else when(tab) {
@@ -113,6 +146,7 @@ class MainActivity : ComponentActivity() {
                 else -> Settings(state,vm)
             }
         }
+    }
     }
     if(create) {
         var goal by rememberSaveable { mutableStateOf("") }
@@ -144,22 +178,25 @@ class MainActivity : ComponentActivity() {
 }
 @Composable private fun Library(state:AppState,vm:LearnViewModel,new:()->Unit,settings:()->Unit) {
     LazyColumn(Modifier.fillMaxSize().testTag("library"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        item { SourceSwitch(state,vm) }
-        item { Surface(shape=RoundedCornerShape(28.dp),color=Color(0xFF163E31)) {
+        item { Text(if(state.pcMode)"Live PC connection" else state.syncStatus,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Surface(shape=RoundedCornerShape(4.dp),color=MaterialTheme.colorScheme.background) {
             Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-                Text("A LITTLE CURIOSITY. A DEEPER UNDERSTANDING.",color=Color(0xFFBFE3A3),fontSize=11.sp,letterSpacing=1.sp)
-                Text("Make it\nmake sense.",color=Color.White,style=MaterialTheme.typography.displaySmall,fontWeight=FontWeight.SemiBold)
-                Text("Find your starting point. Follow the reasoning. Keep what you learn.",color=Color(0xFFD0DED3),style=MaterialTheme.typography.bodyLarge)
-                Button(onClick=new,enabled=!state.busy&&(!state.pcMode||state.paired),colors=ButtonDefaults.buttonColors(containerColor=Color(0xFFD2EDA9),contentColor=Color(0xFF183722))) {Icon(Icons.Outlined.Add,null);Spacer(Modifier.width(8.dp));Text("Start learning")}
+                Text("LEARNING, ONE REASONING STEP AT A TIME",color=MaterialTheme.colorScheme.onSurfaceVariant,fontSize=10.sp,letterSpacing=1.sp,fontFamily=FontFamily.Monospace)
+                Text("What do you want\nto understand?",style=MaterialTheme.typography.displaySmall)
+                Text("Start with a question. Find your starting point, follow the reasoning, and build a map of what you learn.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyLarge)
+                Button(onClick=new,enabled=!state.busy&&(!state.pcMode||state.paired),shape=RoundedCornerShape(6.dp)) {Icon(Icons.Outlined.Add,null);Spacer(Modifier.width(8.dp));Text("New learning session")}
             }
         } }
-        if((!state.pcMode&&!state.hasKey)||(state.pcMode&&!state.paired)) item { OutlinedCard(onClick=settings,modifier=Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {Text(if(state.pcMode) "Connect your PC" else "Bring your own AI",fontWeight=FontWeight.SemiBold);Text(if(state.pcMode) "Share sessions at home and away with Tailscale." else "Add a provider key, or explore a sample lesson first.",style=MaterialTheme.typography.bodySmall)}
+        if((!state.pcMode&&!state.chatGptConnected)||(state.pcMode&&!state.paired)) item { OutlinedCard(onClick=settings,modifier=Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {Text(if(state.pcMode) "Connect your PC" else "Continue with ChatGPT",fontWeight=FontWeight.SemiBold);Text(if(state.pcMode) "Open your live desktop connection." else "Use your subscription on this phone. Your PC can stay off.",style=MaterialTheme.typography.bodySmall)}
         } }
         item { Text("Your sessions",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold) }
         if(state.pcMode) items(state.remoteSessions,key={it.id}) {s -> SessionCard(s.title,if(s.busy) "Working on PC" else if(s.mode=="practice") "Practice · PC" else "Learning · PC") {vm.open(s.id)} }
-        else items(state.data.sessions.sortedByDescending { it.createdAt },key={it.id}) {s -> SessionCard(s.title,if(s.sample) "Sample lesson · available offline" else "${s.mode.replaceFirstChar { it.uppercase() }} · ${s.messages.size} messages") {vm.open(s.id)} }
-        if(!state.pcMode && state.data.sessions.isEmpty()) item { Text("Your next question is a good place to begin.",color=MaterialTheme.colorScheme.onSurfaceVariant);TextButton(onClick=vm::sample) {Text("Explore the orbit sample")}}
+        else {
+            items(state.shared.entries.sortedByDescending {it.record["updatedAt"].toString()},key={it.view.id}){e->SessionCard(e.view.title,"${if(e.view.mode=="practice")"Practice" else "Learning"} · ${e.view.messages.size} messages"){vm.open(e.view.id)}}
+            items(state.data.sessions.filterNot {it.id in state.shared.migratedLegacyIds}.sortedByDescending { it.createdAt },key={it.id}) {s -> SessionCard(s.title,if(s.sample) "Sample lesson · available offline" else "Earlier phone lesson · ${s.messages.size} messages") {vm.open(s.id)} }
+        }
+        if(!state.pcMode && state.data.sessions.isEmpty()&&state.shared.entries.isEmpty()) item { Text("Your next question is a good place to begin.",color=MaterialTheme.colorScheme.onSurfaceVariant);TextButton(onClick=vm::sample) {Text("Explore the orbit sample")}}
         if(state.pcMode&&state.paired&&state.remoteSessions.isEmpty()) item {Text("Your PC sessions will appear here when the connection is available.")}
     }
 }
@@ -186,19 +223,20 @@ class MainActivity : ComponentActivity() {
 }
 @Composable private fun ColumnScope.RemoteLesson(session: RemoteSession,state:AppState,vm:LearnViewModel) {
     var plan by rememberSaveable(session.id) { mutableStateOf(false) }
+    val available=!state.pcMode||state.online
     Row(Modifier.padding(horizontal=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        Text(if(state.online) "Shared with your PC" else "Offline · cached copy",Modifier.weight(1f).padding(top=14.dp),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+        Text(if(!state.pcMode)state.syncStatus else if(state.online) "Live PC session" else "Offline · cached copy",Modifier.weight(1f).padding(top=14.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         FilterChip(selected=plan,onClick={plan=!plan},label={Text("Plan (${session.plan.size})")})
     }
     if(plan) Plan(session.plan) else Transcript(session.messages,Modifier.weight(1f)) {
-        session.error?.let {Text(it,color=MaterialTheme.colorScheme.error);Button(onClick=vm::retry,enabled=!state.busy&&state.online) {Text("Retry PC response")}}
+        session.error?.let {Text(it,color=MaterialTheme.colorScheme.error);Button(onClick=vm::retry,enabled=!state.busy&&available) {Text("Retry response")}}
         if(session.busy) {Text("Your PC is thinking… This session refreshes automatically.");LinearProgressIndicator(Modifier.fillMaxWidth())}
-        else if(session.question != null) QuestionForm(session.question,!state.busy&&state.online,vm)
+        else if(session.question != null) QuestionForm(session.question,!state.busy&&available,vm)
         else {
             session.problem?.let {QuestionHeading(it.statement)}
-            if(session.needsContinuation) Button(onClick={vm.pcAction("continue")},enabled=!state.busy&&state.online) {Text("Continue lesson")}
-            if(session.mode=="practice"&&session.problem==null) OutlinedButton(onClick={vm.pcAction("next")},enabled=!state.busy&&state.online) {Text("Next problem")}
-            Composer(session.id,enabled=!state.busy&&state.online,onSend=vm::send)
+            if(session.needsContinuation) Button(onClick={vm.pcAction("continue")},enabled=!state.busy&&available) {Text("Continue lesson")}
+            if(session.mode=="practice"&&session.problem==null) OutlinedButton(onClick={vm.pcAction("next")},enabled=!state.busy&&available) {Text("Next problem")}
+            Composer(session.id,enabled=!state.busy&&available,onSend=vm::send)
         }
     }
     if(state.busy) TextButton(onClick=vm::cancel) {Text("Stop waiting")}
@@ -208,10 +246,10 @@ class MainActivity : ComponentActivity() {
     LaunchedEffect(messages.size) { if(messages.isNotEmpty()) list.scrollToItem(messages.size-1) }
     LazyColumn(modifier.fillMaxWidth(),state=list,contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
         items(messages,key={it.id}) {m ->
-            Surface(shape=RoundedCornerShape(20.dp),color=if(m.role=="user") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,modifier=Modifier.fillMaxWidth()) {
+            Surface(shape=RoundedCornerShape(6.dp),color=if(m.role=="user") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.background,modifier=Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text(if(m.role=="user") "YOU" else "LEARNHARNESS",style=MaterialTheme.typography.labelSmall,letterSpacing=1.sp,color=MaterialTheme.colorScheme.primary)
-                    SelectionContainer {Text(m.text,style=MaterialTheme.typography.bodyLarge,lineHeight=26.sp)}
+                    RichText(m.text,Modifier.fillMaxWidth())
                     if(m.thinking.isNotBlank()) Text("Your thinking: ${m.thinking}",style=MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -219,7 +257,7 @@ class MainActivity : ComponentActivity() {
         item {Column(verticalArrangement=Arrangement.spacedBy(12.dp),content={footer()})}
     }
 }
-@Composable private fun QuestionHeading(text:String) {Text(text,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold)}
+@Composable private fun QuestionHeading(text:String) {RichText(text,Modifier.fillMaxWidth())}
 @Composable private fun Composer(id:String,enabled:Boolean,onSend:(String,String,Int)->Unit) {
     var answer by rememberSaveable(id) {mutableStateOf("")}
     var thinking by rememberSaveable(id) {mutableStateOf("")}
@@ -242,7 +280,7 @@ class MainActivity : ComponentActivity() {
             Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically) {
                 if(q.mode=="multi-select") Checkbox(checked=option.value in selected,onCheckedChange=null,enabled=enabled)
                 else RadioButton(selected=option.value in selected,onClick=null,enabled=enabled)
-                Column(Modifier.padding(start=10.dp)) {Text(option.label);if(option.description.isNotBlank())Text(option.description,style=MaterialTheme.typography.bodySmall)}
+                Column(Modifier.padding(start=10.dp).weight(1f)) {RichText(option.label);if(option.description.isNotBlank())Text(option.description,style=MaterialTheme.typography.bodySmall)}
             }
         }
     }
@@ -263,11 +301,11 @@ class MainActivity : ComponentActivity() {
 }
 @Composable private fun Knowledge(state:AppState,vm:LearnViewModel) {
     var query by rememberSaveable {mutableStateOf("")}
-    val nodes=if(state.pcMode)state.remoteGraph else state.data.graph().map {it.concept.copy(id=it.key,prerequisites=it.concept.prerequisites.map {p->"${it.sessionId}:$p"})}
+    val nodes=if(state.pcMode)state.remoteGraph else state.sharedGraph+state.data.graph().map {it.concept.copy(id=it.key,prerequisites=it.concept.prerequisites.map {p->"${it.sessionId}:$p"})}
     val filtered=nodes.filter {it.title.contains(query,true)||it.statement.contains(query,true)}
     LazyColumn(Modifier.testTag("knowledge"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        item {SourceSwitch(state,vm)}
-        item {Text("Ideas that connect.",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.SemiBold);Text("${nodes.size} propositions in your ${if(state.pcMode) "PC" else "phone"} library.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
+        item {Text(state.syncStatus,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+        item {Text("Knowledge graph",style=MaterialTheme.typography.headlineMedium);Text("${nodes.size} propositions in your library.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
         if(nodes.isNotEmpty()) item {GraphCanvas(nodes.take(18))}
         item {OutlinedTextField(value=query,onValueChange={query=it},label={Text("Find an idea")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth())}
         if(filtered.isEmpty()) item {Text(if(query.isBlank()) "Your knowledge graph grows as you learn. Try the sample lesson or connect your PC." else "No matching ideas.")}
@@ -288,7 +326,7 @@ class MainActivity : ComponentActivity() {
         Icon(Icons.Outlined.Psychology,null,Modifier.size(64.dp),tint=MaterialTheme.colorScheme.primary)
         Text("Turn understanding\ninto intuition.",style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.SemiBold)
         Text("Work through varied problems, explain your reasoning, and ask for a hint when you need one.",style=MaterialTheme.typography.bodyLarge)
-        Text(if(state.pcMode) "Using your PC's practice agent and model." else "Using your phone's configured AI provider.",color=MaterialTheme.colorScheme.primary)
+        Text(if(state.pcMode) "Using your live PC connection." else "Runs on this phone with ChatGPT. Your PC can stay off.",color=MaterialTheme.colorScheme.onSurfaceVariant)
         Button(onClick=start,enabled=!state.busy&&(!state.pcMode||state.paired),modifier=Modifier.fillMaxWidth()) {Text("Start practicing")}
         OutlinedButton(onClick=library,modifier=Modifier.fillMaxWidth()) {Text("Resume a session")}
     }
@@ -302,13 +340,41 @@ class MainActivity : ComponentActivity() {
     var key by remember {mutableStateOf("")}
     var pcUrl by rememberSaveable(state.pcUrl) {mutableStateOf(state.pcUrl)}
     var token by remember {mutableStateOf("")}
+    var syncCode by remember {mutableStateOf("")}
+    var advanced by rememberSaveable {mutableStateOf(false)}
     val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) {target->if(target!=null)scope.launch {runCatching {withContext(Dispatchers.IO) {context.contentResolver.openOutputStream(target)?.use {it.write(vm.export().toByteArray())} ?: error("Could not open file")}}.onSuccess{vm.report("Phone library exported without credentials")}.onFailure{vm.report("Export failed: ${it.message}")}}}
     val import=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {target->if(target!=null)scope.launch {runCatching {withContext(Dispatchers.IO) {context.contentResolver.openInputStream(target)?.use {input ->
         val out=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192)
-        while(true) {val count=input.read(buffer);if(count<0)break;require(out.size()+count<=5_000_000){"Backup exceeds 5 MB"};out.write(buffer,0,count)}
+        while(true) {val count=input.read(buffer);if(count<0)break;require(out.size()+count<=80_000_000){"Backup exceeds 80 MB"};out.write(buffer,0,count)}
         out.toString("UTF-8")
     }?:error("Could not open file")}}.onSuccess(vm::import).onFailure{vm.report("Import failed: ${it.message}")}}}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        Text("Your learning, everywhere.",style=MaterialTheme.typography.headlineMedium)
+        Text("CHATGPT",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if(state.chatGptConnected)"Connected as ${state.chatGptEmail.ifBlank {"ChatGPT account"}}" else "Sign in on this phone to use your existing ChatGPT subscription. Requests count toward your ChatGPT allowance.")
+        Button(onClick=vm::signInChatGpt,enabled=!state.busy,modifier=Modifier.fillMaxWidth()){Text(if(state.chatGptConnected)"Reconnect ChatGPT" else "Continue with ChatGPT")}
+        if(state.busy)TextButton(onClick=vm::cancel){Text("Cancel current request")}
+        if(state.chatGptConnected) {
+            Text("Model: ${state.chatGptModel.ifBlank {"Choose below"}}",style=MaterialTheme.typography.bodyMedium)
+            TextButton(onClick=vm::refreshModels,enabled=!state.busy){Text("Load available models")}
+            state.chatGptModels.forEach {m->OutlinedCard(onClick={vm.chooseModel(m.slug)},enabled=!state.busy,modifier=Modifier.fillMaxWidth()){
+                Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){RadioButton(selected=state.chatGptModel==m.slug,onClick=null);Text(m.display_name.ifBlank {m.slug},Modifier.padding(start=10.dp))}
+            }}
+            TextButton(onClick=vm::signOutChatGpt,enabled=!state.busy){Text("Sign out on this phone")}
+        }
+        HorizontalDivider()
+        Text("PRIVATE CLOUD SYNC",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(state.syncStatus)
+        Text("Lessons are saved on each device and encrypted before upload. Your PC catches up when LearnHarness opens. ChatGPT credentials stay on this device.",style=MaterialTheme.typography.bodyMedium)
+        if(state.syncConfigured)Button(onClick=vm::sync,enabled=!state.busy,modifier=Modifier.fillMaxWidth()){Text("Sync now")}
+        else {
+            OutlinedTextField(value=syncCode,onValueChange={syncCode=it},label={Text("Private sync setup code")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
+            Button(onClick={vm.setupSync(syncCode);syncCode=""},enabled=!state.busy&&syncCode.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Connect cloud sync")}
+        }
+        HorizontalDivider()
+        TextButton(onClick={advanced=!advanced}){Text(if(advanced)"Hide earlier connection settings" else "Earlier phone lessons and live PC connection")}
+        if(advanced) {
+        SourceSwitch(state,vm)
         Text("Your PC, in your pocket.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold)
         Text("Install the PC bridge update. In LearnHarness on PC choose LearnHarness → Connect Android phone. Connect Tailscale on both devices, then enter the HTTPS address and pairing token.")
         OutlinedTextField(value=pcUrl,onValueChange={pcUrl=it},label={Text("PC HTTPS address")},placeholder={Text("https://your-pc.your-tailnet.ts.net")},singleLine=true,modifier=Modifier.fillMaxWidth())
@@ -326,13 +392,14 @@ class MainActivity : ComponentActivity() {
         Text("Changing an address clears its saved key unless you enter a new one. Keys are encrypted with Android Keystore.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={vm.saveProvider(url,model,key);key=""},enabled=!state.busy,modifier=Modifier.fillMaxWidth()) {Text("Save provider")}
         if(state.hasKey) TextButton(onClick=vm::clearKey,enabled=!state.busy) {Text("Remove API key")}
+        }
         HorizontalDivider()
         Text("Your local library",style=MaterialTheme.typography.titleLarge)
-        Text("Phone sessions stay on this device. PC sessions stay on your PC, with the last opened session cached for reading. Independent phone lessons are not merged into the PC library.",style=MaterialTheme.typography.bodyMedium)
-        OutlinedButton(onClick={export.launch("learnharness-phone-backup.json")},enabled=!state.busy,modifier=Modifier.fillMaxWidth()) {Text("Export phone sessions")}
+        Text("Your backup includes shared lessons, progress, knowledge and the original phone records. Login credentials and private sync keys are excluded.",style=MaterialTheme.typography.bodyMedium)
+        OutlinedButton(onClick={export.launch("learnharness-phone-backup.json")},enabled=!state.busy,modifier=Modifier.fillMaxWidth()) {Text("Export all lessons")}
         OutlinedButton(onClick={import.launch(arrayOf("application/json"))},enabled=!state.busy,modifier=Modifier.fillMaxWidth()) {Text("Import phone backup")}
         HorizontalDivider()
-        Text("LearnHarness Android · 0.1.0",fontWeight=FontWeight.Medium)
+        Text("LearnHarness Android · 0.2.0",fontWeight=FontWeight.Medium)
         Text("Native Kotlin & Jetpack Compose. Adapted from Amos Blomqvist's LearnHarness. AGPL-3.0-only. AI-generated explanations can be wrong.",style=MaterialTheme.typography.bodySmall)
         TextButton(onClick={uri.openUri("https://github.com/AtecHEvolutioN/learnharness/tree/android-native")}) {Text("Source code and license")}
     }

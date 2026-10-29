@@ -1,10 +1,10 @@
-name: Android and PC bridge
+name: Android, PC bridge and encrypted sync
 on:
   push:
     branches: [android-native]
-    paths: ['android/**', 'mobile-bridge/**', 'electron/mobile-*.cjs', '.github/workflows/android.yml']
+    paths: ['android/**', 'mobile-bridge/**', 'cloud-sync/**', 'electron/mobile-*.cjs', 'electron/cloud-sync*.cjs', 'src/core/**', '.github/workflows/android.yml']
   pull_request:
-    paths: ['android/**', 'mobile-bridge/**', 'electron/mobile-*.cjs', '.github/workflows/android.yml']
+    paths: ['android/**', 'mobile-bridge/**', 'cloud-sync/**', 'electron/mobile-*.cjs', 'electron/cloud-sync*.cjs', 'src/core/**', '.github/workflows/android.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -36,4 +36,6 @@ jobs:
           version: '11.25.0'
       - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm build && pnpm test
         working-directory: mobile-bridge
-      - run: git diff --exit-code -- electron/mobile-bridge.cjs
+      - run: git diff --exit-code -- electron/mobile-bridge.cjs electron/cloud-sync-core.cjs android/app/src/main/assets/engine.js android/app/src/main/assets/THIRD-PARTY-NOTICES.txt
+      - run: pnpm install --frozen-lockfile --ignore-scripts && pnpm test
+        working-directory: cloud-sync
