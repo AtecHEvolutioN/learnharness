@@ -5278,7 +5278,8 @@ async function startMobileBridge({ desktopUrl, desktopSecret, token, port = 4783
           if (typeof body.title !== "string" || !body.title.trim() || body.title.length > 500) throw new Error("Enter a topic up to 500 characters");
           return upstream("/api/chats", { title: body.title, kind: body.mode === "practice" ? "practice" : "teach" });
         }
-        const id = match[1];
+        const id = match?.[1];
+        if (!id) throw new Error("Missing session ID");
         if (inflight.has(id)) throw Object.assign(new Error("This session is busy. Refresh before sending again."), { status: 409 });
         inflight.add(id);
         try {
