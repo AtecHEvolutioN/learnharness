@@ -2,7 +2,7 @@
 
 Opt-in Electron-owned bridge for the native Android client. Follow [Android setup](../android/README.md).
 
-The bridge starts through the desktop's **Connect Android phone…** menu. It binds only to `127.0.0.1:47832`. Its unique pairing token is separate from the per-launch desktop API capability. Only the Electron process holds both. Tailscale Serve provides a private HTTPS endpoint; the Android app never receives the desktop API secret, provider keys or OAuth credentials.
+The bridge starts through **Ctrl+Shift+M** or the desktop's **Connect Android phone…** menu. It binds only to `127.0.0.1:47832`. Its unique pairing token is separate from the per-launch desktop API capability. Only the Electron process holds both. Tailscale Serve provides a private HTTPS endpoint; the Android app never receives the desktop API secret, provider keys or OAuth credentials.
 
 `src/projection.ts` reuses the original pure core's transcript projection, pending-question selection, deterministic option shuffle and answer grading. The bridge validates the question's current ID before answering. It does not write the data files itself; the desktop's normal APIs remain the single writers.
 

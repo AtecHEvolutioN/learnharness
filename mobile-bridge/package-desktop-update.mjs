@@ -14,7 +14,7 @@ const mainFile=path.join(stage,'electron/main.cjs');
 let main=await readFile(mainFile,'utf8');
 function replaceOnce(before,after){if(main.split(before).length!==2)throw new Error('Desktop integration anchor missing or ambiguous');main=main.replace(before,after);}
 replaceOnce('const PRODUCT_NAME = "LearnHarness";','const PRODUCT_NAME = "LearnHarness";\nlet mobileConnection;');
-replaceOnce('{ role: "about" },','{ role: "about" },\n\t\t\t\t{ label: "Connect Android phone…", click: () => mobileConnection?.show() },');
+replaceOnce('{ role: "about" },','{ role: "about" },\n\t\t\t\t{ label: "Connect Android phone…", accelerator: "CommandOrControl+Shift+M", click: () => mobileConnection?.show() },');
 replaceOnce('await waitUntilUp(url);','await waitUntilUp(url);\n\t\tmobileConnection = require("./mobile-connection.cjs").createMobileConnection(url, desktopAPISecret);');
 await writeFile(mainFile,main);
 for(const name of ['mobile-bridge.cjs','mobile-connection.cjs','mobile-bridge.LICENSE.txt']) await copyFile(path.resolve('../electron',name),path.join(stage,'electron',name));

@@ -588,7 +588,7 @@ function installMenu() {
 			label: app.name,
 			submenu: [
 				{ role: "about" },
-				{ label: "Connect Android phone…", click: () => mobileConnection?.show() },
+				{ label: "Connect Android phone…", accelerator: "CommandOrControl+Shift+M", click: () => mobileConnection?.show() },
 				// Manual checks report their result in Settings → General.
 				{ label: "Check for Updates…", click: () => checkForUpdatesFromMenu() },
 				{ type: "separator" },

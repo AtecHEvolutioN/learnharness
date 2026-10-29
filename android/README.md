@@ -14,7 +14,7 @@ The last opened PC session is cached for offline reading. New PC turns require a
 The original desktop 0.4.0 deliberately accepts API requests only from its own window. A companion script cannot simply connect to its port. The supplied desktop shell update adds an explicit **Connect Android phone…** menu action while keeping the original API authorization intact.
 
 1. Close LearnHarness. Extract the supplied PC update ZIP and run `Install-PC-Bridge.ps1` in PowerShell. It verifies both archive hashes, backs up `app.asar`, and updates only the shell. It refuses a different installed version. The data directory and provider files are untouched.
-2. Start LearnHarness. Press **Alt** if the app menu is hidden, then choose **LearnHarness → Connect Android phone…**. This starts a bridge bound only to `127.0.0.1:47832`.
+2. Start LearnHarness. Press **Ctrl+Shift+M** (or choose **LearnHarness → Connect Android phone…** from the Alt menu). This starts a bridge bound only to `127.0.0.1:47832`.
 3. Install [Tailscale](https://tailscale.com/download) on PC and Android, sign into the same account, and connect both devices. Enable HTTPS when Tailscale requests it.
 4. On PC run `tailscale serve --bg http://127.0.0.1:47832`. Use **Serve**, which stays inside your private tailnet. Do not use public Funnel.
 5. Copy the HTTPS address Tailscale prints. In the desktop connection dialog choose **Copy pairing token**.
