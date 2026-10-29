@@ -43,6 +43,7 @@ const path = require("node:path");
 const SIDEBAR_AUTOCLOSE = 928;
 
 const PRODUCT_NAME = "LearnHarness";
+let mobileConnection;
 
 // APP NAME → userData (owner, 2026-10-10): the Application Support dir is
 // exactly "LearnHarness" in dev AND packaged. Packaged Electron would
@@ -587,6 +588,7 @@ function installMenu() {
 			label: app.name,
 			submenu: [
 				{ role: "about" },
+				{ label: "Connect Android phone…", click: () => mobileConnection?.show() },
 				// Manual checks report their result in Settings → General.
 				{ label: "Check for Updates…", click: () => checkForUpdatesFromMenu() },
 				{ type: "separator" },
@@ -680,6 +682,7 @@ async function main() {
 		log(`data dir: ${DATA_DIR()}${fs.existsSync(AUTH_FILE()) ? " · auth.json: present" : " · auth.json: ABSENT (no BYOK keys yet)"}`);
 		await startServer(new URL(url).port);
 		await waitUntilUp(url);
+		mobileConnection = require("./mobile-connection.cjs").createMobileConnection(url, desktopAPISecret);
 		log(`server up: ${url}`);
 	} else {
 		log(`dev mode: ${devUrl}`);
