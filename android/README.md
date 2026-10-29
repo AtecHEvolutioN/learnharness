@@ -47,7 +47,7 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`. The debug APK is installable f
 Bridge, from `mobile-bridge/`:
 
 ```sh
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --ignore-scripts
 pnpm build
 pnpm test
 ```

@@ -8,7 +8,7 @@ The bridge starts through the desktop's **Connect Android phone…** menu. It bi
 
 ## Development
 
-Requires Node 24 and pnpm 11.25.0. Run `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm test` in this folder. Commit the generated `electron/mobile-bridge.cjs` so desktop packaging requires no extra runtime dependencies. The bundled TypeBox MIT license must accompany distributions; original LearnHarness logic retains the root AGPL license.
+Requires Node 24 and pnpm 11.25.0. Run `pnpm install --frozen-lockfile --ignore-scripts`, `pnpm build`, `pnpm test` in this folder. Installation scripts are unnecessary: pnpm installs esbuild's platform binary as an optional dependency. Commit the generated `electron/mobile-bridge.cjs` so desktop packaging requires no extra runtime dependencies. The bundled TypeBox MIT license must accompany distributions; original LearnHarness logic retains the root AGPL license.
 
 Tests exercise authorization, CORS rejection, route restrictions, pending-question integrity, answer confidentiality, deterministic grading, and duplicate submission IDs against a mock backend. An additional local integration check was performed against the installed desktop 0.4.0 server in an isolated data directory, with no configured model.
 
